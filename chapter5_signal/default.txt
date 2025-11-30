@@ -1,0 +1,51 @@
+시그널이란?
+
+시그널은 소프트웨어 인터럽트 입니다.
+
+쉽게 말해, 프로세스에게 "어떤 일이 발생했다!" 라고 알려주는 신호입니다.
+
+<시그널이 발생하는 경우 3가지>
+1. 프로그램 예외 : ex.0으로 나누기, 잘못된 메모리 접근
+2. 사용자 입력 : ex. Ctrl + C, Ctrl + Z, Ctrl + \
+3. 프로그램에서 직접 전송 : ex. kill 명령어, kill()시스템 콜
+
+자주 나오는 시그널 번호
+#define SIGHUP      1    // 터미널 연결 끊김
+#define SIGINT      2    // Ctrl+C (인터럽트)
+#define SIGQUIT     3    // Ctrl+\ (종료 + 코어덤프)
+#define SIGKILL     9    // 강제 종료 (무시/변경 불가!)
+#define SIGALRM    14    // alarm() 타이머 만료
+#define SIGTERM    15    // 정상 종료 요청
+#define SIGCHLD    17    // 자식 프로세스 종료
+#define SIGSTOP    19    // 프로세스 정지 (무시/변경 불가!)
+
+!!! SIGKILL(9)와 SIGSTOP(19)는 절대로 무시하거나 핸들러를 변경할 수 없다 !!!
+
+<시그널을 받으면 프로세스가 할 수 있는 동작 3가지>
+1. 기본 동작(Default) : 대부분 프로세스 종료 ex. signal(SIGINT, SIG_DFL);
+2. 무시(Ignore) : 시그널을 무시하고 계속 실행 ex. signal(SIGINT, SIG_IGN);
+3. 핸들러 지정(Handle) : 내가 만든 함수 실행 ex. signal(SIGINT, my_handler);
+
+
+[ signal() 함수 ]
+
+#include <signal.h>
+
+typedef void (*sighandler_t)(int);  // 함수 포인터 타입 정의
+
+sighandler_t signal(int signum, sighandler_t handler);
+
+<==== signal(시그널 번호, 어떻게_처리할지); <====== 이 시그널이 오면, 이렇게 처리해라 라고 설정하는 함수
+
+파라미터 : signum = 처리할 시그널 번호 / handler = 처리 방법
+handler에 들어갈 수 있는 값 : SIG_DFL = 기본 동작 수행(보통 종료), SIG_IGN = 시그널 무시, 함수이름 = 해당 함수 실행
+
+
+[ 시그널 핸들러 함수 ]
+
+시그널이 오면 내가 만든 함수를 실행 시키는것
+
+핸들러 함수 규칙
+1. 리턴 타입 : 반드시 void
+2. 파라미터 : 반드시  int 하나(받은 시그널 번호가 들어옴)
+
