@@ -1,52 +1,63 @@
 /* ============================================================
- * rcv_signal.c - 시그널 수신 자식 프로그램 (주석 있는 버전)
+ * send_signal.c - 시그널 전송 부모 프로그램 (주석 있는 버전)
  * 
- * 기능: 1초마다 카운트 출력, SIGINT 수신 시 핸들러 실행 후 종료
- *       send_signal 프로그램과 함께 사용
- * 컴파일: gcc -o rcv_signal rcv_signal.c
- * 실행: (send_signal에서 execlp로 실행됨)
+ * 기능: 자식 프로세스(rcv_signal) 실행 후 SIGINT 시그널 전송
+ *       자식 종료 상태(status) 분석
+ * 컴파일: gcc -o send_signal send_signal.c
+ * 사전 준비: gcc -o rcv_signal rcv_signal.c
+ *            export PATH=$PATH:.
+ * 실행: ./send_signal
  * 
  * 출력 예시:
  * [Child] sleep count #1
  * [Child] sleep count #2
+ * [Parent]: Send SIGINT
  * [Child] receive SIGINT
+ * [Parent]: Child killed by Parent. [1900]
+ * 
+ * status 분석:
+ * - 자식의 자의적 종료: 상위 바이트에 exit code
+ *   예: exit(25) → status = 0x1900
+ * - 시그널에 의한 종료: 하위 바이트에 signal number
+ *   예: SIGINT(2) → status = 0x0002
  * ============================================================ */
 
 #include <stdio.h>          /* printf 함수 */
-#include <signal.h>         /* signal 함수, SIGINT */
+#include <sys/wait.h>       /* wait 함수 */
+#include <signal.h>         /* kill 함수, SIGINT */
+#include <unistd.h>         /* fork, sleep, execlp 함수 */
 #include <stdlib.h>         /* exit 함수 */
-#include <unistd.h>         /* sleep 함수 */
-#include <sys/types.h>      /* 타입 정의 */
-
-#define MAX_COUNT 10        /* 최대 카운트 수 */
-
-void sigint_signalhandler (int);
 
 int main() {
-    int i = 0;
+    int pid = 0, status = 0;
     
-    /* SIGINT 핸들러 등록 */
-    signal (SIGINT, sigint_signalhandler);
-    
-    /* 1초마다 카운트 출력 */
-    for (i = 1; i < MAX_COUNT; i++) {
-        printf ("\t[Child] sleep count #%d\n", i);
-        sleep (1);
+    if ((pid = fork()) == 0) {          /* 자식 프로세스 */
+        /* --------------------------------------------------------
+         * execlp로 rcv_signal 프로그램 실행
+         * - PATH에서 rcv_signal 검색하여 실행
+         * - 현재 디렉토리가 PATH에 있어야 함
+         * -------------------------------------------------------- */
+        execlp ("rcv_signal", "rcv_signal", (char *)NULL);
+        perror ("execlp() : ");
+        exit(2);
+    }
+    else if (pid > 0) {                 /* 부모 프로세스 */
+        sleep (2);                      /* 2초 대기 */
+        
+        /* --------------------------------------------------------
+         * kill()로 자식에게 SIGINT 전송
+         * - 자식의 핸들러가 호출됨
+         * -------------------------------------------------------- */
+        kill (pid, SIGINT);
+        printf ("[Parent]: Send SIGINT\n");
+        
+        /* --------------------------------------------------------
+         * wait()로 자식 종료 대기 및 상태 수신
+         * - status: 자식의 종료 상태
+         * -------------------------------------------------------- */
+        wait (&status);
+        printf ("[Parent]: Child killed by Parent. [%x] \n", status);
     }
     
-    printf ("\t[Child] process terminate! \n");
-    exit (0);   /* 정상 종료 */
-}
-
-/* ============================================================
- * sigint_signalhandler - SIGINT 시그널 핸들러
- * 
- * 동작:
- * - SIGINT 수신 메시지 출력
- * - exit(25)로 종료 (exit code = 0x19)
- * - wait()로 확인 시 status = 0x1900
- * ============================================================ */
-void sigint_signalhandler (int sig) {
-    printf("\t[Child] receive SIGINT\n");
-    exit (25);  /* 0x19 - 상위 바이트에 저장됨 */
+    return 0;
 }
